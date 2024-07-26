@@ -45,10 +45,10 @@ resource "aws_subnet" "public_subnets" {
 }
  
 resource "aws_subnet" "private_subnets" {
-    count             = length(var.private_subnet_cidrs)
-    vpc_id            = aws_vpc.main.id
-    cidr_block        = element(var.private_subnet_cidrs, count.index)
-    availability_zone = element(var.aws_az, count.index)
+    count                   = length(var.private_subnet_cidrs)
+    vpc_id                  = aws_vpc.main.id
+    cidr_block              = element(var.private_subnet_cidrs, count.index)
+    availability_zone       = element(var.aws_az, count.index)
     map_public_ip_on_launch = false
     
     
@@ -99,7 +99,7 @@ resource "aws_route_table_association" "private" {
 
 resource "aws_security_group" "default" {
     name        = "${terraform.workspace}-default-sg"
-    description = "Default SG to alllow traffic from the VPC"
+    description = "Default SG to allow traffic from the VPC"
     vpc_id      = aws_vpc.main.id
     depends_on = [
         aws_vpc.main
@@ -114,7 +114,7 @@ resource "aws_security_group" "default" {
             from_port = "0"
             to_port   = "0"
             protocol  = "-1"
-            self      = "true"
+            self      = true
         }
 
     tags = local.labels
