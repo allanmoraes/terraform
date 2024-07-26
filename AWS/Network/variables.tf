@@ -28,11 +28,6 @@ variable "vpc_cidr" {
     description = "VPC CIDR value"
     default     = "10.0.0.0/16" 
 }
-variable "vpc_name" {
-    type        = string
-    description = "VPC name value"
-    default     = "general"
-}
 
 # ----- SUBNET -----
 variable "public_subnet_cidrs" {
@@ -44,20 +39,6 @@ variable "private_subnet_cidrs" {
     type        = list(string)
     description = "Private Subnet CIDR values"
     default     = ["10.0.4.0/24", "10.0.5.0/24", "10.0.6.0/24"]
-}
-
-# ----- INTERNET GATEWAY -----
-variable "ig_name" {
-    type        = string
-    description = "Internet Gateway name value"
-    default     = "general-ig"
-}
-
-# ----- ROUTE TABLE -----
-variable "rt_name" {
-    type        = string
-    description = "Route Table name value"
-    default     = "general-rt"
 }
 
 variable "rt_cidr" {
