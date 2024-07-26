@@ -92,7 +92,9 @@ Initialize the Terraform configuration to set up the backend and download requir
    ```
 
 ### 4. Create and Manage Terraform Workspaces:
-Workspaces allow you to manage multiple environments (e.g., development, staging, production). Create a new workspace or switch to an existing one:
+Workspaces allow you to manage multiple environments (e.g., development, staging, production). 
+
+Create a new workspace or switch to an existing one:
 ```bash
 terraform workspace new <workspace-name>
 ```
