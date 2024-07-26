@@ -59,6 +59,11 @@ The `main.tf` file includes the following resources:
 - **Route Tables**: Public and private route tables with appropriate routes.
 - **Security Group**: A default security group allowing traffic within the VPC.
 
+### Private Network Map
+![private_resource_map](images/private_map.png)
+### Public Network Map
+![public_resource_map](images/public_map.png)
+
 ## Setup and Usage
 
 ### 1. Generate AWS Access Keys
