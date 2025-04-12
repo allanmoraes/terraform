@@ -1,121 +1,112 @@
-resource "aws_vpc" "main" {
-    cidr_block = var.vpc_cidr
- 
-    tags = merge({
-        Name = "${terraform.workspace}"
-        }, local.labels)
+provider "aws" {
+  region = var.aws_region
 }
 
-resource "aws_internet_gateway" "gw" {
-    vpc_id = aws_vpc.main.id
-
-    tags = merge({
-        Name = "${terraform.workspace}-internet-gateway"
-        }, local.labels)
+# Recuperar as zonas de disponibilidade disponíveis se não forem especificadas
+locals {
+  availability_zones = length(var.availability_zones) > 0 ? var.availability_zones : slice(data.aws_availability_zones.available.names, 0, 3)
+  
+  common_tags = {
+    Name           = "${var.project_name}-${var.environment}"
+    Environment    = var.environment
+    Owner          = var.owner
+    CostCenter     = var.cost_center
+    GitRepo        = var.git_repo
+    ManagedBy      = "terraform"
+    IsTerrraformed = "true"
+  }
 }
 
-resource "aws_eip" "nat_eip" {
-    domain        = "vpc"
-    depends_on    = [aws_internet_gateway.gw]
+data "aws_availability_zones" "available" {}
 
-    tags = merge({
-        Name = "${terraform.workspace}-elastic-ip"
-        }, local.labels)
+# VPC
+module "vpc" {
+  source     = "./modules/vpc"
+  cidr_block = var.vpc_cidr
+  tags       = merge(local.common_tags, {
+    Name = "${var.project_name}-vpc-${var.environment}"
+  })
 }
 
-resource "aws_nat_gateway" "nat_gw" {
-    allocation_id = aws_eip.nat_eip.id
-    subnet_id     = element(aws_subnet.public_subnets.*.id, 0)
-
-    tags = merge({
-        Name = "${terraform.workspace}-nat-gateway"
-        }, local.labels)
+# Sub-redes públicas
+module "public_subnets" {
+  source             = "./modules/subnets"
+  vpc_id             = module.vpc.vpc_id
+  subnet_cidrs       = var.public_subnet_cidrs
+  availability_zones = local.availability_zones
+  is_public          = true
+  tags               = merge(local.common_tags, {
+    Name = "${var.project_name}-public-subnet-${var.environment}"
+    Tier = "public"
+  })
 }
 
-resource "aws_subnet" "public_subnets" {
-    count                   = length(var.public_subnet_cidrs)
-    vpc_id                  = aws_vpc.main.id
-    cidr_block              = element(var.public_subnet_cidrs, count.index)
-    availability_zone       = element(var.aws_az, count.index)
-    map_public_ip_on_launch = true
-
-    tags = merge({
-        Name = "${terraform.workspace}-public-subnet-${element(var.aws_az, count.index)}"
-        }, local.labels)
-}
- 
-resource "aws_subnet" "private_subnets" {
-    count                   = length(var.private_subnet_cidrs)
-    vpc_id                  = aws_vpc.main.id
-    cidr_block              = element(var.private_subnet_cidrs, count.index)
-    availability_zone       = element(var.aws_az, count.index)
-    map_public_ip_on_launch = false
-    
-    
-    tags = merge({
-        Name = "${terraform.workspace}-private-subnet-${element(var.aws_az, count.index)}"
-        },  local.labels)
+# Sub-redes privadas
+module "private_subnets" {
+  source             = "./modules/subnets"
+  vpc_id             = module.vpc.vpc_id
+  subnet_cidrs       = var.private_subnet_cidrs
+  availability_zones = local.availability_zones
+  is_public          = false
+  tags               = merge(local.common_tags, {
+    Name = "${var.project_name}-private-subnet-${var.environment}"
+    Tier = "private"
+  })
 }
 
-resource "aws_route_table" "private" {
-    vpc_id = aws_vpc.main.id
-
-    tags = merge({
-        Name = "${terraform.workspace}-private-route-table"
-        },  local.labels)
+# Internet Gateway
+module "internet_gateway" {
+  source = "./modules/internet_gateway"
+  vpc_id = module.vpc.vpc_id
+  tags   = merge(local.common_tags, {
+    Name = "${var.project_name}-igw-${var.environment}"
+  })
 }
 
-resource "aws_route_table" "public" {
-    vpc_id = aws_vpc.main.id
-
-    tags = merge({
-        Name = "${terraform.workspace}-public-route-table"
-        },  local.labels)
+# NAT Gateways - um em cada sub-rede pública
+module "nat_gateways" {
+  source            = "./modules/nat_gateway"
+  count             = length(local.availability_zones)
+  subnet_id         = element(module.public_subnets.subnet_ids, count.index)
+  connectivity_type = var.environment == "prod" ? "public" : "private"
+  tags              = merge(local.common_tags, {
+    Name = "${var.project_name}-natgw-${count.index + 1}-${var.environment}"
+  })
 }
 
-resource "aws_route" "public_internet_gateway" {
-    route_table_id         = aws_route_table.public.id
-    destination_cidr_block = "0.0.0.0/0"
-    gateway_id             = aws_internet_gateway.gw.id
+# Tabela de rotas pública
+module "public_route_tables" {
+  source           = "./modules/route_tables"
+  vpc_id           = module.vpc.vpc_id
+  subnet_ids       = module.public_subnets.subnet_ids
+  gateway_id       = module.internet_gateway.gateway_id
+  destination_cidr = "0.0.0.0/0"
+  route_type       = "public"
+  tags             = merge(local.common_tags, {
+    Name = "${var.project_name}-public-rt-${var.environment}"
+  })
 }
 
-resource "aws_route" "private_nat_gateway" {
-    route_table_id         = aws_route_table.private.id
-    destination_cidr_block = "0.0.0.0/0"
-    nat_gateway_id         = aws_nat_gateway.nat_gw.id
+# Tabelas de rotas privadas - uma para cada AZ
+module "private_route_tables" {
+  source            = "./modules/route_tables"
+  count             = length(local.availability_zones)
+  vpc_id            = module.vpc.vpc_id
+  subnet_ids        = [element(module.private_subnets.subnet_ids, count.index)]
+  nat_gateway_id    = element(module.nat_gateways.*.nat_gateway_id, count.index)
+  destination_cidr  = "0.0.0.0/0"
+  route_type        = "private"
+  tags              = merge(local.common_tags, {
+    Name = "${var.project_name}-private-rt-${count.index + 1}-${var.environment}"
+  })
 }
 
-resource "aws_route_table_association" "public" {
-    count          = length(var.public_subnet_cidrs)
-    subnet_id      = element(aws_subnet.public_subnets.*.id, count.index)
-    route_table_id = aws_route_table.public.id
-}
-
-resource "aws_route_table_association" "private" {
-    count          = length(var.private_subnet_cidrs)
-    subnet_id      = element(aws_subnet.private_subnets.*.id, count.index)
-    route_table_id = aws_route_table.private.id
-}
-
-resource "aws_security_group" "default" {
-    name        = "${terraform.workspace}-default-sg"
-    description = "Default SG to allow traffic from the VPC"
-    vpc_id      = aws_vpc.main.id
-    depends_on = [
-        aws_vpc.main
-    ]   
-        ingress {
-            from_port = "0"
-            to_port   = "0"
-            protocol  = "-1"
-            self      = true
-        }   
-        egress {
-            from_port = "0"
-            to_port   = "0"
-            protocol  = "-1"
-            self      = true
-        }
-
-    tags = local.labels
+# Grupos de segurança padrão
+module "security_groups" {
+  source      = "./modules/security_groups"
+  vpc_id      = module.vpc.vpc_id
+  environment = var.environment
+  tags        = merge(local.common_tags, {
+    Name = "${var.project_name}-sg-${var.environment}"
+  })
 }
