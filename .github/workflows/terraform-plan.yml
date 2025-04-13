@@ -14,7 +14,7 @@ on:
       action_runner:
         type: string
         required: false
-        default: "small-runner"
+        default: "ubuntu:latest"
 
       terraform_version:
         description: "The terraform version."
