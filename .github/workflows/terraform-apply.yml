@@ -1,0 +1,67 @@
+name: terraform-apply
+on:
+  workflow_call:
+    inputs:
+      working_directory:
+        description: "The working directory of execution."
+        type: string
+        required: true
+
+      environment:
+        type: string
+        required: false
+
+      action_runner:
+        type: string
+        required: false
+        default: "small-runner"
+
+      terraform_version:
+        description: "The terraform version."
+        type: string
+        required: false
+        default: "1.5.5"
+
+env:
+  AWS_ACCESS_KEY_ID: ${{ vars.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  TF_WORKSPACE: ${{ vars.WORKSPACE }}
+
+jobs:
+  apply:
+    name: Terraform Apply
+    if: ${{ ! cancelled() && github.ref == 'refs/heads/main' }}
+    runs-on:
+      - ${{ inputs.action_runner }}
+    environment:
+      name: ${{ inputs.environment }}
+    steps:
+      - name: Checkout Terraform Live Repository
+        uses: actions/checkout@v3
+
+      - name: "Setup Terraform"
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version:  ${{ inputs.terraform_version }}
+          terraform_wrapper: false
+
+      - name: Terraform Init
+        id: init
+        run: |
+          terraform init --upgrade
+        working-directory: ${{ inputs.working_directory }}
+      
+      - name: Terraform Apply
+        id: apply
+        run: |
+          terraform apply -auto-approve
+        working-directory: ${{ inputs.working_directory }}
+        continue-on-error: true
+      
+      - name: Job Status
+        env:
+          APPLY: ${{ steps.apply.outcome }}
+        run: |
+          if [[ "$APPLY" == "failure" ]]; then
+            exit 1
+          fi
