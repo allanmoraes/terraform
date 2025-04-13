@@ -30,7 +30,7 @@ env:
 jobs:
   apply:
     name: Terraform Apply
-    if: ${{ ! cancelled() && github.ref == 'refs/heads/main' }}
+    if: ${{ ! cancelled() && github.ref == 'refs/heads/master' }}
     runs-on:
       - ${{ inputs.action_runner }}
     environment:
