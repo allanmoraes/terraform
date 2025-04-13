@@ -4,7 +4,7 @@ provider "aws" {
 
 # Recuperar as zonas de disponibilidade disponíveis se não forem especificadas
 locals {
-  availability_zones = length(local.context[terraform.workspace].availability_zones) > 0 ? local.context[terraform.workspace].availability_zones : slice(data.aws_availability_zones.available.names, 0, 3)
+  availability_zones = length(local.context[terraform.workspace].availability_zones)
   
   common_tags = {
     Name           = "${local.context[terraform.workspace].project_name}-${local.context[terraform.workspace].environment}"
@@ -16,8 +16,6 @@ locals {
     IsTerrraformed = "true"
   }
 }
-
-data "aws_availability_zones" "available" {}
 
 # VPC
 module "vpc" {
