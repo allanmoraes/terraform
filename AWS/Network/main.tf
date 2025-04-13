@@ -1,17 +1,17 @@
 provider "aws" {
-  region = var.aws_region
+  region = local.context[terraform.workspace].aws_region
 }
 
 # Recuperar as zonas de disponibilidade disponíveis se não forem especificadas
 locals {
-  availability_zones = length(var.availability_zones) > 0 ? var.availability_zones : slice(data.aws_availability_zones.available.names, 0, 3)
+  availability_zones = length(local.context[terraform.workspace].availability_zones) > 0 ? local.context[terraform.workspace].availability_zones : slice(data.aws_availability_zones.available.names, 0, 3)
   
   common_tags = {
-    Name           = "${var.project_name}-${var.environment}"
-    Environment    = var.environment
-    Owner          = var.owner
-    CostCenter     = var.cost_center
-    GitRepo        = var.git_repo
+    Name           = "${local.context[terraform.workspace].project_name}-${local.context[terraform.workspace].environment}"
+    Environment    = local.context[terraform.workspace].environment
+    Owner          = local.context[terraform.workspace].owner
+    CostCenter     = local.context[terraform.workspace].cost_center
+    GitRepo        = local.context[terraform.workspace].git_repo
     ManagedBy      = "terraform"
     IsTerrraformed = "true"
   }
@@ -22,9 +22,9 @@ data "aws_availability_zones" "available" {}
 # VPC
 module "vpc" {
   source     = "./modules/vpc"
-  cidr_block = var.vpc_cidr
+  cidr_block = local.context[terraform.workspace].vpc_cidr
   tags       = merge(local.common_tags, {
-    Name = "${var.project_name}-vpc-${var.environment}"
+    Name = "${local.context[terraform.workspace].project_name}-vpc-${local.context[terraform.workspace].environment}"
   })
 }
 
