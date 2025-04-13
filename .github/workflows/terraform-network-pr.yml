@@ -2,14 +2,14 @@ name: "Terraform AWS Network CI/CD"
 
 on:
   pull_request:
-    branches: [ main, develop ]
+    branches: [ master, develop ]
     paths:
       - 'AWS/Network/**'
       - '.github/workflows/terraform-network.yml'
 
 jobs:
   plan-production:
-    if: ${{ github.ref == 'refs/heads/main' }}
+    if: ${{ github.ref == 'refs/heads/master' }}
     uses: ./.github/workflows/terraform-plan.yaml
     with:
       working_directory: AWS/Network/
