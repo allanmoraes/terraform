@@ -5,7 +5,7 @@ output "vpc_id" {
 
 output "vpc_cidr" {
   description = "CIDR da VPC"
-  value       = var.vpc_cidr
+  value       = local.context[terraform.workspace].vpc_cidr
 }
 
 output "public_subnet_ids" {

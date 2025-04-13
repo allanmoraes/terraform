@@ -1,0 +1,18 @@
+name: "Terraform AWS Network CI/CD"
+
+on:
+  push:
+    branches: [ master, develop ]
+    paths:
+      - 'AWS/Network/**'
+      - '.github/workflows/terraform-network.yml'
+
+jobs:
+  apply-production:
+    if: ${{ github.ref == 'refs/heads/master' }}
+    uses: ./.github/workflows/terraform-apply.yml
+    with:
+      working_directory: AWS/Network/
+      environment: prod
+    secrets: inherit
+  

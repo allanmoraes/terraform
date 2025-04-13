@@ -1,10 +1,9 @@
 terraform {
   backend "s3" {
-    bucket         = "platform-terraform-state"
+    bucket         = "allan-terraform-state"
     key            = "network/terraform.tfstate"
-    region         = var.aws_region
+    region         = "us-east-1"
     encrypt        = true
-    dynamodb_table = "platform-terraform-locks"
-    role_arn       = "CROSS-ACCOUNT"
+    #dynamodb_table = "allan-terraform-locks"
   }
 }

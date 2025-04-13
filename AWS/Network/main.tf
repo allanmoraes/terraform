@@ -1,30 +1,32 @@
 provider "aws" {
-  region = var.aws_region
+  region = local.context[terraform.workspace].aws_region
+}
+
+data "aws_availability_zones" "available" {
+    all_availability_zones = true
 }
 
 # Recuperar as zonas de disponibilidade disponíveis se não forem especificadas
 locals {
-  availability_zones = length(var.availability_zones) > 0 ? var.availability_zones : slice(data.aws_availability_zones.available.names, 0, 3)
+  availability_zones = data.aws_availability_zones.available[*].names
   
   common_tags = {
-    Name           = "${var.project_name}-${var.environment}"
-    Environment    = var.environment
-    Owner          = var.owner
-    CostCenter     = var.cost_center
-    GitRepo        = var.git_repo
+    Name           = "${local.context[terraform.workspace].project_name}-${local.context[terraform.workspace].environment}"
+    Environment    = local.context[terraform.workspace].environment
+    Owner          = local.context[terraform.workspace].owner
+    CostCenter     = local.context[terraform.workspace].cost_center
+    GitRepo        = local.context[terraform.workspace].git_repo
     ManagedBy      = "terraform"
     IsTerrraformed = "true"
   }
 }
 
-data "aws_availability_zones" "available" {}
-
 # VPC
 module "vpc" {
   source     = "./modules/vpc"
-  cidr_block = var.vpc_cidr
+  cidr_block = local.context[terraform.workspace].vpc_cidr
   tags       = merge(local.common_tags, {
-    Name = "${var.project_name}-vpc-${var.environment}"
+    Name = "${local.context[terraform.workspace].project_name}-vpc-${local.context[terraform.workspace].environment}"
   })
 }
 
@@ -32,11 +34,11 @@ module "vpc" {
 module "public_subnets" {
   source             = "./modules/subnets"
   vpc_id             = module.vpc.vpc_id
-  subnet_cidrs       = var.public_subnet_cidrs
+  subnet_cidrs       = local.context[terraform.workspace].public_subnet_cidrs
   availability_zones = local.availability_zones
   is_public          = true
   tags               = merge(local.common_tags, {
-    Name = "${var.project_name}-public-subnet-${var.environment}"
+    Name = "${local.context[terraform.workspace].project_name}-public-subnet-${local.context[terraform.workspace].environment}"
     Tier = "public"
   })
 }
@@ -45,11 +47,11 @@ module "public_subnets" {
 module "private_subnets" {
   source             = "./modules/subnets"
   vpc_id             = module.vpc.vpc_id
-  subnet_cidrs       = var.private_subnet_cidrs
+  subnet_cidrs       = local.context[terraform.workspace].private_subnet_cidrs
   availability_zones = local.availability_zones
   is_public          = false
   tags               = merge(local.common_tags, {
-    Name = "${var.project_name}-private-subnet-${var.environment}"
+    Name = "${local.context[terraform.workspace].project_name}-private-subnet-${local.context[terraform.workspace].environment}"
     Tier = "private"
   })
 }
@@ -59,7 +61,7 @@ module "internet_gateway" {
   source = "./modules/internet_gateway"
   vpc_id = module.vpc.vpc_id
   tags   = merge(local.common_tags, {
-    Name = "${var.project_name}-igw-${var.environment}"
+    Name = "${local.context[terraform.workspace].project_name}-igw-${local.context[terraform.workspace].environment}"
   })
 }
 
@@ -68,9 +70,9 @@ module "nat_gateways" {
   source            = "./modules/nat_gateway"
   count             = length(local.availability_zones)
   subnet_id         = element(module.public_subnets.subnet_ids, count.index)
-  connectivity_type = var.environment == "prod" ? "public" : "private"
+  connectivity_type = local.context[terraform.workspace].environment == "prod" ? "public" : "private"
   tags              = merge(local.common_tags, {
-    Name = "${var.project_name}-natgw-${count.index + 1}-${var.environment}"
+    Name = "${local.context[terraform.workspace].project_name}-natgw-${count.index + 1}-${local.context[terraform.workspace].environment}"
   })
 }
 
@@ -83,7 +85,7 @@ module "public_route_tables" {
   destination_cidr = "0.0.0.0/0"
   route_type       = "public"
   tags             = merge(local.common_tags, {
-    Name = "${var.project_name}-public-rt-${var.environment}"
+    Name = "${local.context[terraform.workspace].project_name}-public-rt-${local.context[terraform.workspace].environment}"
   })
 }
 
@@ -97,7 +99,7 @@ module "private_route_tables" {
   destination_cidr  = "0.0.0.0/0"
   route_type        = "private"
   tags              = merge(local.common_tags, {
-    Name = "${var.project_name}-private-rt-${count.index + 1}-${var.environment}"
+    Name = "${local.context[terraform.workspace].project_name}-private-rt-${count.index + 1}-${local.context[terraform.workspace].environment}"
   })
 }
 
@@ -105,8 +107,8 @@ module "private_route_tables" {
 module "security_groups" {
   source      = "./modules/security_groups"
   vpc_id      = module.vpc.vpc_id
-  environment = var.environment
+  environment = local.context[terraform.workspace].environment
   tags        = merge(local.common_tags, {
-    Name = "${var.project_name}-sg-${var.environment}"
+    Name = "${local.context[terraform.workspace].project_name}-sg-${local.context[terraform.workspace].environment}"
   })
 }

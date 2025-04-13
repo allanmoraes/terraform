@@ -1,7 +1,0 @@
-project_name     = "myproject"
-environment      = "dev"
-owner            = "DevTeam"
-git_repo         = "https://github.com/company/myproject.git"
-cost_center      = "DEV-123"
-aws_region       = "us-east-1"
-vpc_cidr         = "10.0.0.0/16"

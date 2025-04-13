@@ -1,0 +1,112 @@
+name: terraform-plan
+on:
+  workflow_call:
+    inputs:
+      working_directory:
+        description: "The working directory of execution."
+        type: string
+        required: true
+
+      environment:
+        type: string
+        required: false
+
+      action_runner:
+        type: string
+        required: false
+        default: "ubuntu-latest"
+
+      terraform_version:
+        description: "The terraform version."
+        type: string
+        required: false
+        default: "1.5.5"
+
+env:
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  TF_WORKSPACE: ${{ vars.WORKSPACE }}
+
+jobs:
+  plan:
+    runs-on:
+      - ${{ inputs.action_runner }}
+    environment:
+      name: ${{ inputs.environment }}
+    steps:
+      - name: Checkout Terraform Live PR branch
+        uses: actions/checkout@v3
+
+      - name: "Setup Terraform"
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version:  ${{ inputs.terraform_version }}
+          terraform_wrapper: false
+
+      - name: Terraform Init
+        id: init
+        run: |
+          terraform init --upgrade
+        continue-on-error: true
+        working-directory: ${{ inputs.working_directory }}
+
+      - name: List
+        id: list
+        run: |
+          ls
+          pwd
+        continue-on-error: true
+        working-directory: ${{ inputs.working_directory }}
+
+      - name: Terraform Validate
+        if: steps.init.outcome == 'success'
+        id: validate
+        run: |
+          terraform validate
+        continue-on-error: true
+        working-directory: ${{ inputs.working_directory }}
+
+      - name: "Terraform Plan"
+        if: steps.validate.outcome == 'success'
+        id: plan
+        run: |
+          set -o pipefail
+          TEMP_FILE=$(mktemp)
+          terraform plan | tee $TEMP_FILE
+          echo "Counting $TEMP_FILE bytes"
+          BYTE_COUNT=$(wc -c < $TEMP_FILE)
+          echo "Bytes: $BYTE_COUNT"
+          echo "------------------------------------------------------------------------"
+          echo "Byte limit for Github Pull Request comment: 50000"
+          if (( $BYTE_COUNT < 50000 )); then
+            echo "Commenting Terraform Plan on Pull Request"
+            RESULT=$(cat <<EOF
+          <details><summary><strong>Show Plan</strong></summary>
+
+          \`\`\`diff
+          $(cat $TEMP_FILE)
+          \`\`\`
+          </details>
+          EOF
+          )
+
+            echo "logs=$(echo -e "$RESULT" | base64 | tr -d '\n')" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "Skipping Pull Request Terraform Plan comment"
+          RESULT="*Terraform Plan is over character threshold, please check **<a href=\"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\">job page</a>***"
+
+          echo "logs=$(echo $RESULT | base64 | tr -d '\n')" >> $GITHUB_OUTPUT
+        continue-on-error: true
+        working-directory: ${{ inputs.working_directory }}
+
+      - name: Job Status
+        run: |
+          INIT=${{ steps.init.outcome }}
+          VALIDATE=${{ steps.validate.outcome }}
+          PLAN=${{ steps.plan.outcome }}
+
+          if [[ "$INIT" == "failure" || "$VALIDATE" == "failure" || "$PLAN" == "failure" ]]; then
+            exit 1
+          fi
