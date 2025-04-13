@@ -8,7 +8,7 @@ data "aws_availability_zones" "available" {
 
 # Recuperar as zonas de disponibilidade disponíveis se não forem especificadas
 locals {
-  availability_zones = length(data.aws_availability_zones.available[*].names)
+  availability_zones = data.aws_availability_zones.available[*].names
   
   common_tags = {
     Name           = "${local.context[terraform.workspace].project_name}-${local.context[terraform.workspace].environment}"
