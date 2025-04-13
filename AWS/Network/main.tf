@@ -2,9 +2,13 @@ provider "aws" {
   region = local.context[terraform.workspace].aws_region
 }
 
+data "aws_availability_zones" "available" {
+    all_availability_zones = true
+}
+
 # Recuperar as zonas de disponibilidade disponíveis se não forem especificadas
 locals {
-  availability_zones = length(local.context[terraform.workspace].availability_zones)
+  availability_zones = length(data.aws_availability_zones.available.name)
   
   common_tags = {
     Name           = "${local.context[terraform.workspace].project_name}-${local.context[terraform.workspace].environment}"
