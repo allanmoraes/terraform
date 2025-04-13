@@ -10,7 +10,7 @@ on:
 jobs:
   apply-production:
     if: ${{ github.ref == 'refs/heads/master' }}
-    uses: .github/workflows/terraform-apply.yaml
+    uses: ./.github/workflows/terraform-apply.yml
     with:
       working_directory: AWS/Network/
       environment: prod
